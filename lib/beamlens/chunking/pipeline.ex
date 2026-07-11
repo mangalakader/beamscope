@@ -1,10 +1,15 @@
 defmodule Beamlens.Chunking.Pipeline do
   @moduledoc """
-  Walks a repo and chunks every file concurrently via `Task.async_stream`,
-  merging the per-file chunk lists into one combined list. Each file's
-  parse (`:epp`/`Code.string_to_quoted`) is a pure, self-contained
-  operation with no shared state, so files are trivially parallelizable —
-  only the final merge step needs to wait for every task.
+  Walks a repo and chunks every file concurrently via
+  `Task.Supervisor.async_stream_nolink`, merging the per-file chunk lists
+  into one combined list. Each file's parse (`:epp`/`Code.string_to_quoted`)
+  is a pure, self-contained operation with no shared state, so files are
+  trivially parallelizable — only the final merge step needs to wait for
+  every task. Using the supervised, `nolink` variant (rather than plain
+  `Task.async_stream`) means a file that raises an exception (not just one
+  that times out) is isolated to that file's `:errors` entry instead of
+  crashing the caller — which, for callers like `Beamlens.Search.Store`, is
+  a singleton GenServer caching state for every repo ever queried.
 
   File discovery mirrors chunker.py's `walk_repo`/`CODE_EXTENSIONS`/
   `SKIP_DIRS` so the file set stays comparable to the original pipeline.
@@ -44,22 +49,30 @@ defmodule Beamlens.Chunking.Pipeline do
   end
 
   defp do_walk(dir) do
-    dir
-    |> File.ls!()
-    |> Enum.flat_map(fn entry ->
-      path = Path.join(dir, entry)
+    case File.ls(dir) do
+      {:ok, entries} ->
+        Enum.flat_map(entries, fn entry ->
+          path = Path.join(dir, entry)
 
-      cond do
-        File.dir?(path) ->
-          if entry in @skip_dirs or String.starts_with?(entry, "."), do: [], else: do_walk(path)
+          cond do
+            File.dir?(path) ->
+              if entry in @skip_dirs or String.starts_with?(entry, "."),
+                do: [],
+                else: do_walk(path)
 
-        chunkable?(path) ->
-          [path]
+            chunkable?(path) ->
+              [path]
 
-        true ->
-          []
-      end
-    end)
+            true ->
+              []
+          end
+        end)
+
+      # Unreadable directory (permissions, dangling symlink, race with a
+      # concurrent delete) — skip it rather than crashing the whole walk.
+      {:error, _reason} ->
+        []
+    end
   end
 
   defp chunkable?(path) do
@@ -108,8 +121,9 @@ defmodule Beamlens.Chunking.Pipeline do
     start_time = System.monotonic_time()
 
     result =
-      files
-      |> Task.async_stream(
+      Beamlens.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        files,
         &chunk_file_traced(&1, opts),
         max_concurrency: max_concurrency,
         timeout: timeout,

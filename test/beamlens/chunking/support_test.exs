@@ -58,7 +58,13 @@ defmodule Beamlens.Chunking.SupportTest do
       chunk = %{symbol: "f/0", start_line: 1, end_line: 30, text: Enum.join(lines, "\n")}
 
       assert [_single] = Support.split_if_oversized(chunk)
-      assert [_a, _b | _] = Support.split_if_oversized(chunk, max_chunk_lines: 10, window_lines: 10, overlap_lines: 0)
+
+      assert [_a, _b | _] =
+               Support.split_if_oversized(chunk,
+                 max_chunk_lines: 10,
+                 window_lines: 10,
+                 overlap_lines: 0
+               )
     end
   end
 

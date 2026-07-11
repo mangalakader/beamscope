@@ -84,5 +84,12 @@ defmodule Beamlens.Callgraph.ExtractorTest do
     test "returns empty defs/edges on a fatal parse failure" do
       assert Extractor.extract_from_file(fixture("broken_syntax.ex")) == {[], []}
     end
+
+    test "a macro-generated def name (`def unquote(name)(...)`) doesn't crash the whole file" do
+      {defs, _edges} = Extractor.extract_from_file(fixture("unquoted_def_name.ex"))
+
+      assert Enum.any?(defs, &(&1.name == "normal_fun"))
+      assert Enum.any?(defs, &(&1.name == "?"))
+    end
   end
 end

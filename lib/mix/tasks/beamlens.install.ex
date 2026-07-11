@@ -4,13 +4,12 @@ if Code.ensure_loaded?(Igniter) do
     Installer for `beamlens`, invoked via `mix igniter.install beamlens`.
 
     `igniter.install` already adds `beamlens` to `mix.exs` before this task
-    runs, so there's nothing left to scaffold yet — no MCP server config, no
-    Qdrant/Ollama settings — because those features don't exist yet. This
-    task's only job right now is to print an accurate status notice so
-    nobody assumes more is wired up than actually is.
+    runs, so there's nothing left to scaffold yet — no config needed to run
+    the MCP server. This task's only job right now is to print an accurate
+    status notice so nobody assumes more is wired up than actually is.
     """
 
-    @shortdoc "Installs beamlens (chunking + call-graph extraction only, no MCP/search yet)"
+    @shortdoc "Installs beamlens (chunking, call-graph, MCP server; no incremental indexing yet)"
 
     use Igniter.Mix.Task
 
@@ -24,12 +23,17 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.add_notice(igniter, """
       beamlens added. What works right now:
 
+        mix beamlens.mcp                          # MCP server: get_callers, get_callees,
+                                                    # find_call_path, search_code
+        Beamlens.Repo.callers/3, callees/3, call_path/5, search/3
         Beamlens.Chunking.Pipeline.chunk_repo/2
         Beamlens.Callgraph.Pipeline.extract_repo/2
-        Beamlens.Callgraph.Graph.callers/2, callees/2, shortest_path/3
 
-      Not built yet: MCP server tools, semantic/embedding search (search_code),
-      incremental indexing. See the beamlens README for current status.
+      search_code needs the optional bumblebee/nx/torchx deps — see the
+      README's "Setup" section.
+
+      Not built yet: incremental indexing (every index build re-processes
+      the whole file set). See the beamlens README for current status.
       """)
     end
   end

@@ -43,6 +43,41 @@ defmodule Beamlens.Callgraph.Graph do
   @spec callees(LibGraph.t(), String.t()) :: [String.t()]
   def callees(graph, qualified_name), do: LibGraph.out_neighbors(graph, qualified_name)
 
+  @doc """
+  Every function that calls `qualified_name`, enriched with its definition
+  location (`file_path`/`start_line`/`end_line`) when known. A caller with
+  no known def (e.g. an unresolved dynamic-dispatch node) comes back with
+  just `qualified_name` — honest, not an error.
+  """
+  @spec callers_with_locations(LibGraph.t(), String.t()) :: [map()]
+  def callers_with_locations(graph, qualified_name) do
+    graph |> callers(qualified_name) |> Enum.map(&location_entry(graph, &1))
+  end
+
+  @doc "Every function `qualified_name` calls, enriched with location like `callers_with_locations/2`."
+  @spec callees_with_locations(LibGraph.t(), String.t()) :: [map()]
+  def callees_with_locations(graph, qualified_name) do
+    graph |> callees(qualified_name) |> Enum.map(&location_entry(graph, &1))
+  end
+
+  defp location_entry(graph, qualified_name) do
+    label = graph |> LibGraph.vertex_labels(qualified_name) |> List.first() || %{}
+    Map.merge(%{qualified_name: qualified_name}, label)
+  end
+
+  @doc """
+  Every known function definition in the graph — `qualified_name` plus its
+  `file_path`/`start_line`/`end_line`. Vertices added only as edge endpoints
+  (e.g. unresolved/dynamic calls) have no location label and are excluded.
+  """
+  @spec defs(LibGraph.t()) :: [map()]
+  def defs(graph) do
+    graph
+    |> LibGraph.vertices()
+    |> Enum.map(&location_entry(graph, &1))
+    |> Enum.filter(&Map.has_key?(&1, :file_path))
+  end
+
   @spec shortest_path(LibGraph.t(), String.t(), String.t()) :: [String.t()] | nil
   def shortest_path(graph, from, to), do: LibGraph.get_shortest_path(graph, from, to)
 

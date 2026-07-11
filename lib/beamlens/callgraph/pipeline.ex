@@ -1,7 +1,7 @@
 defmodule Beamlens.Callgraph.Pipeline do
   @moduledoc """
   Walks a repo and extracts call-graph defs/edges from every file
-  concurrently via `Task.async_stream`, mirroring
+  concurrently via `Task.Supervisor.async_stream_nolink`, mirroring
   `Beamlens.Chunking.Pipeline.chunk_repo/2` (same file discovery,
   same concurrency model, same `:telemetry` events under a
   `[:beamlens, :callgraph_repo, ...]` prefix). Kept as a separate
@@ -32,8 +32,9 @@ defmodule Beamlens.Callgraph.Pipeline do
     start_time = System.monotonic_time()
 
     result =
-      files
-      |> Task.async_stream(
+      Beamlens.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        files,
         &extract_file_traced(&1, opts),
         max_concurrency: max_concurrency,
         timeout: timeout,

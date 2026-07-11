@@ -34,6 +34,9 @@ defmodule Beamlens.MixProject do
       {:igniter, "~> 0.5", optional: true},
       {:plug, "~> 1.18"},
       {:bandit, "~> 1.5"},
+      {:bumblebee, "~> 0.7", optional: true},
+      {:nx, "~> 0.12", optional: true},
+      {:torchx, "~> 0.12", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

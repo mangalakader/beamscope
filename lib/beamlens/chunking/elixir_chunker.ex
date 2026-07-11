@@ -100,6 +100,10 @@ defmodule Beamlens.Chunking.ElixirChunker do
   defp function_name({:when, _meta, [inner_head, _guard]}), do: function_name(inner_head)
   defp function_name({name, _meta, _args}) when is_atom(name), do: name
 
+  # Macro-generated name (e.g. `def unquote(name)(...)`) — can't be
+  # statically resolved to an atom.
+  defp function_name(_other), do: :"?"
+
   defp max_line(ast) do
     {_ast, max_seen} =
       Macro.prewalk(ast, 0, fn

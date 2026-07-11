@@ -3,7 +3,7 @@ defmodule Beamlens.MCP.Tools.GetCallers do
 
   @behaviour Beamlens.MCP.Tool
 
-  alias Beamlens.Callgraph.{Graph, Store}
+  alias Beamlens.Repo
 
   @impl true
   def name, do: "get_callers"
@@ -18,7 +18,8 @@ defmodule Beamlens.MCP.Tools.GetCallers do
       "properties" => %{
         "repo_path" => %{
           "type" => "string",
-          "description" => "Absolute or relative path to the repo to query (built/cached on first use)"
+          "description" =>
+            "Absolute or relative path to the repo to query (built/cached on first use)"
         },
         "module" => %{"type" => "string", "description" => "Module name of the target function"},
         "function" => %{"type" => "string", "description" => "Name of the target function"}
@@ -29,10 +30,6 @@ defmodule Beamlens.MCP.Tools.GetCallers do
 
   @impl true
   def call(%{"repo_path" => repo_path, "module" => module, "function" => function}) do
-    graph = Store.get_or_build(repo_path)
-    qualified = Graph.qualified_name(module, function)
-    callers = Graph.callers(graph, qualified)
-
-    {:ok, %{qualified_name: qualified, callers: callers}}
+    Repo.callers(repo_path, module, function)
   end
 end

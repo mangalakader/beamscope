@@ -54,5 +54,13 @@ defmodule Beamlens.Chunking.ElixirChunkerTest do
     test "returns no chunks (no fallback) on a genuine syntax error" do
       assert ElixirChunker.chunk_file(fixture("broken_syntax.ex")) == []
     end
+
+    test "a macro-generated def name (`def unquote(name)(...)`) doesn't crash the whole file" do
+      chunks = ElixirChunker.chunk_file(fixture("unquoted_def_name.ex"))
+      symbols = Enum.map(chunks, & &1.symbol)
+
+      assert "Beamlens.FakeGenerated.normal_fun (def)" in symbols
+      assert "Beamlens.FakeGenerated.? (def)" in symbols
+    end
   end
 end

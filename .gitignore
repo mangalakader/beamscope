@@ -43,3 +43,7 @@ beamlens-*.tar
 /priv/fixtures/mongooseim/
 /priv/fixtures/amoc-arsenal-xmpp/
 /priv/fixtures/elixir/
+
+# Search index build artifact (Beamlens.Search.Store) — created under any
+# repo Beamlens indexes, including its own fixtures during tests.
+.beamlens/

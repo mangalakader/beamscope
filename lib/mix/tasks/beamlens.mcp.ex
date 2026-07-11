@@ -5,11 +5,12 @@ defmodule Mix.Tasks.Beamlens.Mcp do
       mix beamlens.mcp
       mix beamlens.mcp --port 9877
 
-  Exposes `get_callers`, `get_callees`, `find_call_path` as MCP tools at
-  `http://localhost:<port>/mcp`, backed by `Beamlens.Callgraph.Store`.
-  Each tool call takes an explicit `repo_path`; the graph for that path is
-  built once and cached across calls within this server process's
-  lifetime.
+  Exposes `get_callers`, `get_callees`, `find_call_path`, `search_code` as
+  MCP tools at `http://localhost:<port>/mcp`, routed through `Beamlens.Repo`
+  (backed by `Beamlens.Callgraph.Store`/`Beamlens.Search.Store`). Each tool
+  call takes an explicit `repo_path`; the graph/search index for that path
+  is built once (on the first call that needs it) and cached across calls
+  within this server process's lifetime.
 
   Built directly on Plug + Bandit + Jason (`Beamlens.MCP.Protocol`/
   `Beamlens.MCP.Router`), not an MCP protocol library — connect an MCP

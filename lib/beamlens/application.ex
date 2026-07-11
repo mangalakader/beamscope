@@ -8,7 +8,11 @@ defmodule Beamlens.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      Beamlens.Callgraph.Store
+      {Task.Supervisor, name: Beamlens.TaskSupervisor},
+      {DynamicSupervisor, name: Beamlens.Embeddings.ServingSupervisor, strategy: :one_for_one},
+      Beamlens.Callgraph.Store,
+      Beamlens.Search.Store,
+      Beamlens.Embeddings
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -206,6 +206,11 @@ defmodule Beamlens.Callgraph.Extractor do
 
   defp elixir_function_name({name, _meta, _args}) when is_atom(name), do: name
 
+  # Macro-generated name (e.g. `def unquote(name)(...)`) — can't be
+  # statically resolved to an atom, same "?" convention as an unresolved
+  # dynamic-module Erlang call below.
+  defp elixir_function_name(_other), do: :"?"
+
   # Remote call: Mod.fun(args).
   defp find_elixir_calls(
          {{:., meta, [{:__aliases__, _, mod_parts}, fn_name]}, _meta2, args} = node,
