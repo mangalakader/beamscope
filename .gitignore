@@ -31,6 +31,11 @@ beamlens-*.tar
 # Local environment overrides
 .env
 
+# Internal research/analysis notes — some reference third-party tools by
+# name (competitor benchmark comparisons) and aren't meant to be committed
+# or published. Kept locally only.
+/docs/
+
 # Real-world repos checked out for Phase 0 parity validation — these are
 # full clones (with their own _build/) fetched for research/testing, not
 # package fixtures. Never meant to be committed or published; the actual

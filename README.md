@@ -6,8 +6,8 @@ Chunking and call-graph extraction are built on `:epp` and `Code.string_to_quote
 the same frontends the compiler itself uses — instead of a generic tree-sitter
 grammar. On Erlang specifically, this means macros are seen exactly as the
 compiler sees them: a call hidden behind a `-define`d macro is resolved to its
-real target, not left as an opaque token. See `docs/phase0-parity-report.md`
-and `docs/phase0-vs-serena-report.md` for the evidence this claim is based on.
+real target, not left as an opaque token, validated against real production
+Erlang codebases during Phase 0.
 
 ## Status
 
@@ -70,8 +70,7 @@ rather than silently dropped or misattributed.
 - No installer (`mix igniter.install`) — add this repo as a path/git
   dependency for now.
 - No incremental indexing — every `chunk_repo`/`extract_repo` call
-  re-processes the whole file set. See `docs/incremental-indexing-design.md`
-  for a design sketch (not implemented).
+  re-processes the whole file set (design sketched, not implemented).
 
 ## Development
 
@@ -85,10 +84,6 @@ live under `priv/fixtures/` but are gitignored — they're research artifacts
 for validating parity against the reference Python pipeline, not package
 fixtures. The small synthetic `.erl`/`.ex` files alongside them *are* real,
 tracked test fixtures.
-
-See `docs/` for the full Phase 0 record: parity investigation, call-graph
-validation, and the benchmark against an existing LSP-based code-intelligence
-tool.
 
 ## License
 
