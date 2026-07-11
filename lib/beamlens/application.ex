@@ -8,8 +8,7 @@ defmodule Beamlens.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Beamlens.Worker.start_link(arg)
-      # {Beamlens.Worker, arg}
+      Beamlens.Callgraph.Store
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

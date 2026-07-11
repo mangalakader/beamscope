@@ -42,3 +42,4 @@ beamlens-*.tar
 # test fixtures are the small synthetic files alongside them.
 /priv/fixtures/mongooseim/
 /priv/fixtures/amoc-arsenal-xmpp/
+/priv/fixtures/elixir/
