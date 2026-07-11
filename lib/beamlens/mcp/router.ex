@@ -1,16 +1,28 @@
 defmodule Beamlens.MCP.Router do
   @moduledoc """
-  Plug router mounting the MCP streamable-HTTP endpoint. `Hermes.Server`'s
-  `:streamable_http` transport is message-routing logic only — it doesn't
-  start an HTTP listener itself, so the consuming app (here, the
-  `beamlens.mcp` mix task) is expected to mount this Plug and start its
-  own HTTP server (Bandit) around it.
+  HTTP endpoint for the MCP server. A single `POST /mcp` accepting one
+  JSON-RPC 2.0 message per request, dispatched via `Beamlens.MCP.Protocol`.
   """
 
   use Plug.Router
 
+  plug(Plug.Parsers, parsers: [:json], json_decoder: Jason)
   plug(:match)
   plug(:dispatch)
 
-  forward("/mcp", to: Hermes.Server.Transport.StreamableHTTP.Plug, init_opts: [server: Beamlens.MCP.Server])
+  post "/mcp" do
+    case Beamlens.MCP.Protocol.handle(conn.body_params) do
+      {:ok, response} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(response))
+
+      :no_reply ->
+        send_resp(conn, 202, "")
+    end
+  end
+
+  match _ do
+    send_resp(conn, 404, "not found")
+  end
 end

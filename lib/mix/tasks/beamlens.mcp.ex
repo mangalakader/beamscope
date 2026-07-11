@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Beamlens.Mcp do
   @moduledoc """
-  Starts the Beamlens MCP server over streamable HTTP.
+  Starts the Beamlens MCP server over HTTP.
 
       mix beamlens.mcp
       mix beamlens.mcp --port 9877
@@ -11,25 +11,13 @@ defmodule Mix.Tasks.Beamlens.Mcp do
   built once and cached across calls within this server process's
   lifetime.
 
-  ## Why HTTP, not stdio
-
-  Stdio is the transport most local MCP clients (Claude Desktop, Claude
-  Code) expect for a spawned subprocess, and was the original plan here.
-  It's not used: `hermes_mcp` 0.14.1's stdio transport has a confirmed bug
-  where every single (non-batched) JSON-RPC message crashes the
-  connection — `Message.decode/1` always returns a list of messages
-  (supporting newline-delimited batches), but
-  `Hermes.Server.Transport.STDIO.process_message/2` doesn't unwrap that
-  list before dispatching, so it always receives `[message]` where a bare
-  map is expected. Reproduced directly against the library, not just in
-  this project's own code; no newer release exists to pick up a fix as of
-  this writing. HTTP transport doesn't share this bug (it decodes each
-  request body as a single map on a different code path) and is used here
-  instead, at the cost of not matching the "spawn me as a subprocess"
-  config shape most desktop clients default to for local servers.
+  Built directly on Plug + Bandit + Jason (`Beamlens.MCP.Protocol`/
+  `Beamlens.MCP.Router`), not an MCP protocol library — connect an MCP
+  client to the URL above as a remote HTTP server rather than spawning
+  this as a stdio subprocess.
   """
 
-  @shortdoc "Starts the Beamlens MCP server (streamable HTTP transport)"
+  @shortdoc "Starts the Beamlens MCP server (HTTP)"
 
   use Mix.Task
 
@@ -41,13 +29,6 @@ defmodule Mix.Tasks.Beamlens.Mcp do
     port = Keyword.get(opts, :port, @default_port)
 
     Mix.Task.run("app.start")
-
-    # Not started by Hermes' own Application by default — it's scoped to
-    # whichever app actually runs a server, not always-on infrastructure.
-    {:ok, _registry_pid} = Registry.start_link(keys: :unique, name: Hermes.Server.Registry)
-
-    {:ok, _server_pid} =
-      Hermes.Server.Supervisor.start_link(Beamlens.MCP.Server, transport: {:streamable_http, []})
 
     {:ok, _bandit_pid} = Bandit.start_link(plug: Beamlens.MCP.Router, port: port)
 

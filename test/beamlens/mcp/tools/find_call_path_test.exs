@@ -2,7 +2,6 @@ defmodule Beamlens.MCP.Tools.FindCallPathTest do
   use ExUnit.Case, async: false
 
   alias Beamlens.MCP.Tools.FindCallPath
-  alias Hermes.Server.{Frame, Response}
 
   @repo Path.join([File.cwd!(), "priv", "fixtures", "mcp_repo"])
 
@@ -15,9 +14,7 @@ defmodule Beamlens.MCP.Tools.FindCallPathTest do
       "to_function" => "get_module_opt"
     }
 
-    assert {:reply, %Response{structured_content: content}, %Frame{}} =
-             FindCallPath.execute(params, Frame.new())
-
+    assert {:ok, content} = FindCallPath.call(params)
     assert content.path == ["mod_sample:start", "mod_sample:helper", "gen_mod:get_module_opt"]
   end
 
@@ -30,9 +27,7 @@ defmodule Beamlens.MCP.Tools.FindCallPathTest do
       "to_function" => "get_module_opt"
     }
 
-    assert {:reply, %Response{structured_content: content}, _frame} =
-             FindCallPath.execute(params, Frame.new())
-
+    assert {:ok, content} = FindCallPath.call(params)
     assert content.path == nil
   end
 end

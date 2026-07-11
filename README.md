@@ -78,17 +78,19 @@ mix beamlens.mcp              # listens on http://localhost:9877/mcp
 mix beamlens.mcp --port 8080
 ```
 
-Runs over **streamable HTTP, not stdio**. Most local MCP clients (Claude
-Desktop, Claude Code) default to spawning a subprocess and talking over
-stdio, but `hermes_mcp` 0.14.1's stdio transport has a confirmed bug where
-every single (non-batched) JSON-RPC message crashes the connection
-(`Message.decode/1` always returns a list; `STDIO.process_message/2`
-doesn't unwrap it before dispatching). Reproduced directly against the
-library; no newer release exists yet. HTTP transport doesn't share the
-bug — this also matches how [Tidewave](https://hexdocs.pm/tidewave/mcp.html),
-the most prominent production Elixir MCP server, does it: mounted HTTP,
+Runs over **HTTP, not stdio** — most local MCP clients (Claude Desktop,
+Claude Code) default to spawning a subprocess and talking over stdio, but
+this matches how [Tidewave](https://hexdocs.pm/tidewave/mcp.html), the
+most prominent production Elixir MCP server, does it too: mounted HTTP,
 not a spawned stdio subprocess. Connect an MCP client to
 `http://localhost:9877/mcp` as a remote server.
+
+The MCP layer (`Beamlens.MCP.Protocol`/`Beamlens.MCP.Router`) is built
+directly on `Plug` + `Bandit` + `Jason` — no MCP protocol library. Three
+stateless tools don't need a full client/server SDK (session tracking,
+SSE, batching, capability negotiation beyond `tools`); a ~90-line
+JSON-RPC dispatcher covers exactly what's needed and avoids taking on
+a large, mostly-unused dependency tree for it.
 
 ## What's not built yet
 

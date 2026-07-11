@@ -32,7 +32,6 @@ defmodule Beamlens.MixProject do
       {:libgraph, "~> 0.16"},
       {:telemetry, "~> 1.2"},
       {:igniter, "~> 0.5", optional: true},
-      {:hermes_mcp, "~> 0.14"},
       {:plug, "~> 1.18"},
       {:bandit, "~> 1.5"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
