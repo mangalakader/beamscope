@@ -54,20 +54,17 @@ Erlang codebases. The MCP server (call graph + semantic search) works
 end-to-end and is verified as a real `mix` dependency in an external
 Elixir app. **No incremental indexing yet** — every index build
 reprocesses the whole repo from scratch (see
-[Limitations](#limitations)). Not yet published to Hex — see
-[Setup](#setup).
+[Limitations](#limitations)). Published on
+[Hex](https://hex.pm/packages/beamscope) — see [Setup](#setup).
 
 ## Setup
 
-Not published to Hex yet — add as a git or path dependency in the
-consuming project's `mix.exs`:
+Add to the consuming project's `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:beamscope, git: "https://github.com/mangalakader/beamscope.git"}
-    # or, against a local checkout:
-    # {:beamscope, path: "../beamlens_spike"}
+    {:beamscope, "~> 0.1.0"}
   ]
 end
 ```
@@ -76,15 +73,21 @@ end
 mix deps.get
 ```
 
-If the consuming project uses [Igniter](https://hexdocs.pm/igniter), one
-command does the same `mix.exs` edit and prints a notice listing what's
-wired up right now. Since this isn't on Hex yet, point it at the git repo
-directly with the `@git:`/`@github:` syntax (a bare `mix igniter.install
-beamscope` only works once this is published to Hex):
+If the consuming project uses [Igniter](https://hexdocs.pm/igniter),
+`mix igniter.install beamscope` does the same `mix.exs` edit and prints a
+notice listing what's wired up right now.
+
+Prefer to track the git repo directly (a specific commit, or `main`)
+instead of a Hex release:
+
+```elixir
+{:beamscope, git: "https://github.com/mangalakader/beamscope.git"}
+# or, against a local checkout:
+# {:beamscope, path: "../beamlens_spike"}
+```
 
 ```
 mix igniter.install beamscope@git:https://github.com/mangalakader/beamscope.git
-# or: mix igniter.install beamscope@github:mangalakader/beamscope
 ```
 
 **Ignore the build artifacts.** Once you index a repo (see below), beamscope
@@ -271,7 +274,6 @@ working.
   large production codebase it's the same one-time cost as the very first
   build, paid again on every reindex. The mental model: **the index is a
   rebuildable cache, not a live-updating one.**
-- **Not published to Hex yet** — see [Setup](#setup) above.
 
 ## Development
 
