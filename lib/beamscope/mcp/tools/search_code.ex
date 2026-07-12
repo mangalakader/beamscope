@@ -89,8 +89,8 @@ defmodule Beamscope.MCP.Tools.SearchCode do
   end
 
   defp embeddings_not_available_message do
-    "search_code's semantic matches require the optional bumblebee/nx/torchx dependencies " <>
-      "(exact_matches still work without them). Add {:bumblebee, \"~> 0.7\"}, {:nx, \"~> 0.12\"}, " <>
-      "{:torchx, \"~> 0.12\"} to your mix.exs deps and run mix deps.get."
+    ~s|search_code's semantic matches require the optional bumblebee/nx/torchx dependencies | <>
+      ~s|(exact_matches still work without them). Add {:bumblebee, "~> 0.7"}, {:nx, "~> 0.12"}, | <>
+      ~s|{:torchx, "~> 0.12"} to your mix.exs deps and run mix deps.get.|
   end
 end

@@ -33,7 +33,7 @@ defmodule Beamscope.Search.StoreExternalTest do
              Store.search(@repo, "look up a module's configured backend option", limit: 3)
 
     assert length(results) <= 3
-    assert length(results) > 0
+    assert results != []
 
     for %{
           file_path: file_path,

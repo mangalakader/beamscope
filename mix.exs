@@ -39,7 +39,8 @@ defmodule Beamscope.MixProject do
       {:torchx, "~> 0.12", optional: true},
       {:tokenizers, "~> 0.5"},
       {:benchee, "~> 1.3", only: [:dev, :test], optional: true},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -53,13 +54,15 @@ defmodule Beamscope.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/mangalakader/beamscope"},
-      files: ~w(lib mix.exs README.md ENGINEERING.md LICENSE .formatter.exs)
+      files: ~w(lib priv/tokenizer mix.exs README.md ENGINEERING.md LICENSE .formatter.exs)
     ]
   end
 
   defp docs do
     [
       main: "readme",
+      source_url: "https://github.com/mangalakader/beamscope",
+      source_ref: "v#{@version}",
       extras: ["README.md", "ENGINEERING.md"]
     ]
   end

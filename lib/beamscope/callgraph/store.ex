@@ -9,7 +9,7 @@ defmodule Beamscope.Callgraph.Store do
   called explicitly.
 
   Also persists the built graph to `<repo_path>/.beamscope/callgraph.json`
-  (`Graph.to_node_link_json/1`) so a server restart reloads it from disk
+  (`Beamscope.Callgraph.Graph.to_node_link_json/1`) so a server restart reloads it from disk
   instead of re-parsing the whole repo from source. Writes go to a
   `.tmp.<unique>` file first, renamed into place only once fully written —
   a crash mid-write leaves the last-known-good real file untouched rather

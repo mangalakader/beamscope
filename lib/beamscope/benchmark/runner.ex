@@ -160,6 +160,7 @@ defmodule Beamscope.Benchmark.Runner do
         # `only: [:dev, :test]` in mix.exs, which never propagates to a
         # consuming project's own deps — a static call would warn "module
         # not available" at compile time for every consumer, in every env.
+        # credo:disable-for-next-line Credo.Check.Refactor.Apply
         suite = apply(Benchee, :run, [scenarios, [time: 1, warmup: 0.5]])
 
         Enum.map(suite.scenarios, fn scenario ->

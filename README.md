@@ -240,6 +240,27 @@ comparison table needs `Benchee`; add `{:benchee, "~> 1.3", only: :dev}`
 to your own `mix.exs` deps to get it — without it, the benchmark still
 runs and reports token counts, just without that section.
 
+## Roadmap
+
+Planned, not yet built:
+
+- **Incremental indexing** — skip re-processing files that haven't
+  changed since the last build, instead of always rebuilding from
+  scratch (see [Limitations](#limitations)).
+- **Concurrent/pipelined embedding** — parallelize `search_code`'s
+  chunk-embedding step to speed up cold indexing of large repos.
+- **Export/import of a built index** — move a repo's `.beamscope/` index
+  between machines without rebuilding.
+- **A web-based call-graph visualizer** — browse `get_callers`/
+  `get_callees`/`find_call_path` results interactively instead of only
+  through MCP tool calls or direct API calls.
+- **Embedding/search-index quality metrics** — surface how well
+  `search_code`'s semantic matches are actually performing, beyond the
+  benchmark tool's task-by-task quality notes.
+
+None of these block current usage — each is additive to what's already
+working.
+
 ## Limitations
 
 - **No incremental indexing.** Every index build — call graph or search —

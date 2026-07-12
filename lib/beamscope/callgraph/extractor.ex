@@ -45,40 +45,46 @@ defmodule Beamscope.Callgraph.Extractor do
     case ErlangForms.parse_owned_forms(path, include_dirs) do
       {:ok, forms, _partial?} ->
         module = erlang_module_name(forms)
-
-        Enum.reduce(forms, {[], []}, fn
-          {:function, line, name, _arity, clauses} = form, {defs, edges} ->
-            def_entry = %{
-              name: to_string(name),
-              module: module,
-              file_path: path,
-              start_line: line,
-              end_line: max(line, ErlangForms.deep_max_line(form))
-            }
-
-            new_edges =
-              clauses
-              |> find_erlang_calls(module, [])
-              |> Enum.map(fn {callee_module, callee_name, call_line} ->
-                %{
-                  caller_module: module,
-                  caller_name: to_string(name),
-                  callee_module: callee_module,
-                  callee_name: to_string(callee_name),
-                  file_path: path,
-                  line: call_line
-                }
-              end)
-
-            {[def_entry | defs], new_edges ++ edges}
-
-          _other, acc ->
-            acc
-        end)
+        Enum.reduce(forms, {[], []}, &accumulate_erlang_form(&1, module, path, &2))
 
       {:error, _reason} ->
         {[], []}
     end
+  end
+
+  defp accumulate_erlang_form(
+         {:function, line, name, _arity, clauses} = form,
+         module,
+         path,
+         {defs, edges}
+       ) do
+    def_entry = %{
+      name: to_string(name),
+      module: module,
+      file_path: path,
+      start_line: line,
+      end_line: max(line, ErlangForms.deep_max_line(form))
+    }
+
+    new_edges =
+      clauses
+      |> find_erlang_calls(module, [])
+      |> Enum.map(&erlang_edge(&1, module, name, path))
+
+    {[def_entry | defs], new_edges ++ edges}
+  end
+
+  defp accumulate_erlang_form(_other, _module, _path, acc), do: acc
+
+  defp erlang_edge({callee_module, callee_name, call_line}, module, name, path) do
+    %{
+      caller_module: module,
+      caller_name: to_string(name),
+      callee_module: callee_module,
+      callee_name: to_string(callee_name),
+      file_path: path,
+      line: call_line
+    }
   end
 
   defp erlang_module_name(forms) do
@@ -89,22 +95,7 @@ defmodule Beamscope.Callgraph.Extractor do
   end
 
   defp find_erlang_calls(tuple, module, acc) when is_tuple(tuple) do
-    acc =
-      case tuple do
-        {:call, line, target, _args} ->
-          case resolve_erlang_target(target) do
-            {callee_module, callee_name} ->
-              callee_module = if callee_module == :local, do: module, else: callee_module
-              [{callee_module, callee_name, line} | acc]
-
-            nil ->
-              acc
-          end
-
-        _ ->
-          acc
-      end
-
+    acc = accumulate_call(tuple, module, acc)
     tuple |> Tuple.to_list() |> Enum.reduce(acc, &find_erlang_calls(&1, module, &2))
   end
 
@@ -112,6 +103,19 @@ defmodule Beamscope.Callgraph.Extractor do
     do: Enum.reduce(list, acc, &find_erlang_calls(&1, module, &2))
 
   defp find_erlang_calls(_other, _module, acc), do: acc
+
+  defp accumulate_call({:call, line, target, _args}, module, acc) do
+    case resolve_erlang_target(target) do
+      {callee_module, callee_name} ->
+        callee_module = if callee_module == :local, do: module, else: callee_module
+        [{callee_module, callee_name, line} | acc]
+
+      nil ->
+        acc
+    end
+  end
+
+  defp accumulate_call(_other, _module, acc), do: acc
 
   # Local call: foo(Args).
   defp resolve_erlang_target({:atom, _, fn_name}), do: {:local, fn_name}

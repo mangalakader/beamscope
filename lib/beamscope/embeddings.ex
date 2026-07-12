@@ -64,7 +64,8 @@ defmodule Beamscope.Embeddings do
      "stateful/process" workflow instead: each serving is started once via
      `Nx.Serving.start_link/1` (as a `DynamicSupervisor` child, so it's
      still only paid on first real use — see
-     `Beamscope.Embeddings.ServingSupervisor` in `Beamscope.Application`),
+     `Beamscope.Embeddings.ServingSupervisor` in the application's
+     supervision tree),
      and every embed call goes through `Nx.Serving.batched_run/2` against
      the already-running named process instead of building/tracing inline.
   """

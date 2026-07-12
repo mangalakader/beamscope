@@ -51,26 +51,29 @@ defmodule Beamscope.Chunking.Pipeline do
   defp do_walk(dir) do
     case File.ls(dir) do
       {:ok, entries} ->
-        Enum.flat_map(entries, fn entry ->
-          path = Path.join(dir, entry)
-
-          cond do
-            File.dir?(path) ->
-              if entry in @skip_dirs or String.starts_with?(entry, "."),
-                do: [],
-                else: do_walk(path)
-
-            chunkable?(path) ->
-              [path]
-
-            true ->
-              []
-          end
-        end)
+        Enum.flat_map(entries, &walk_entry(dir, &1))
 
       # Unreadable directory (permissions, dangling symlink, race with a
       # concurrent delete) — skip it rather than crashing the whole walk.
       {:error, _reason} ->
+        []
+    end
+  end
+
+  defp walk_entry(dir, entry) do
+    path = Path.join(dir, entry)
+
+    cond do
+      File.dir?(path) and (entry in @skip_dirs or String.starts_with?(entry, ".")) ->
+        []
+
+      File.dir?(path) ->
+        do_walk(path)
+
+      chunkable?(path) ->
+        [path]
+
+      true ->
         []
     end
   end
