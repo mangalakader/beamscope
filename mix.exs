@@ -1,18 +1,18 @@
-defmodule Beamlens.MixProject do
+defmodule Beamscope.MixProject do
   use Mix.Project
 
   @version "0.1.0"
 
   def project do
     [
-      app: :beamlens,
+      app: :beamscope,
       version: @version,
-      elixir: "~> 1.18",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
       package: package(),
-      name: "Beamlens",
+      name: "Beamscope",
       docs: docs()
     ]
   end
@@ -21,7 +21,7 @@ defmodule Beamlens.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Beamlens.Application, []}
+      mod: {Beamscope.Application, []}
     ]
   end
 
@@ -52,8 +52,7 @@ defmodule Beamlens.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      # TODO: add a real `links: %{"GitHub" => "..."}` once this has a public repo —
-      # intentionally omitted rather than guessing a URL that doesn't exist yet.
+      links: %{"GitHub" => "https://github.com/mangalakader/beamscope"},
       files: ~w(lib mix.exs README.md ENGINEERING.md LICENSE .formatter.exs)
     ]
   end

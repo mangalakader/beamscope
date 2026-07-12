@@ -17,7 +17,7 @@ erl_crash.dump
 *.ez
 
 # Ignore package tarball (built via "mix hex.build").
-beamlens-*.tar
+beamscope-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
@@ -45,6 +45,6 @@ beamlens-*.tar
 /priv/fixtures/elixir/
 /priv/fixtures/phoenix/
 
-# Search index build artifact (Beamlens.Search.Store) — created under any
-# repo Beamlens indexes, including its own fixtures during tests.
-.beamlens/
+# Search index build artifact (Beamscope.Search.Store) — created under any
+# repo Beamscope indexes, including its own fixtures during tests.
+.beamscope/

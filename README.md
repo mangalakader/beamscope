@@ -1,4 +1,4 @@
-# Beamlens
+# Beamscope
 
 Compiler-accurate code intelligence for BEAM codebases (Erlang and Elixir).
 
@@ -11,10 +11,41 @@ token.
 
 Built to reduce the token cost of AI coding agents (Claude Code, and
 similar tools) working against large Erlang/Elixir codebases — in
-benchmarks across three real codebases, using beamlens instead of raw
+benchmarks across three real codebases, using beamscope instead of raw
 grep/read cuts token usage by 90–100% on call-graph queries. See
 [ENGINEERING.md](ENGINEERING.md) for the architecture decisions,
 benchmark methodology, and full results.
+
+## How it works
+
+```mermaid
+flowchart LR
+    Client["AI agent / MCP client\n(Claude Code, etc.)"] -->|HTTP JSON-RPC| MCP["Beamscope.MCP\n(Plug + Bandit)"]
+    MCP --> Repo["Beamscope.Repo"]
+
+    Repo --> CGStore["Callgraph.Store"]
+    Repo --> SearchStore["Search.Store"]
+
+    CGStore --> CGPipeline["Callgraph.Pipeline\n(:epp / Code.string_to_quoted)"]
+    SearchStore --> ChunkPipeline["Chunking.Pipeline"]
+    SearchStore --> Embeddings["Embeddings\n(Bumblebee/Nx/Torchx, optional)"]
+
+    CGPipeline --> Source[("your repo's\nsource files")]
+    ChunkPipeline --> Source
+
+    CGStore -. persists .-> CGFile[(".beamscope/callgraph.json")]
+    SearchStore -. persists .-> SearchFile[(".beamscope/search.dets")]
+```
+
+`Repo` is the single entry point both the MCP server and direct callers go
+through. The call graph and search index are each built once per
+`repo_path`, cached in memory, and persisted to disk so a restart doesn't
+mean re-parsing or re-embedding the whole repo (see
+[Limitations](#limitations) for what's not yet incremental about that).
+`search_code`'s embedding step is the only part of this that touches the
+optional `bumblebee`/`nx`/`torchx` deps — everything else works with zero
+ML dependencies. See [ENGINEERING.md](ENGINEERING.md) for why each piece
+is built the way it is.
 
 ## Status
 
@@ -34,9 +65,9 @@ consuming project's `mix.exs`:
 ```elixir
 def deps do
   [
-    {:beamlens, git: "https://github.com/mangalakader/beamlens.git"}
+    {:beamscope, git: "https://github.com/mangalakader/beamscope.git"}
     # or, against a local checkout:
-    # {:beamlens, path: "../beamlens_spike"}
+    # {:beamscope, path: "../beamlens_spike"}
   ]
 end
 ```
@@ -49,20 +80,20 @@ If the consuming project uses [Igniter](https://hexdocs.pm/igniter), one
 command does the same `mix.exs` edit and prints a notice listing what's
 wired up right now. Since this isn't on Hex yet, point it at the git repo
 directly with the `@git:`/`@github:` syntax (a bare `mix igniter.install
-beamlens` only works once this is published to Hex):
+beamscope` only works once this is published to Hex):
 
 ```
-mix igniter.install beamlens@git:https://github.com/mangalakader/beamlens.git
-# or: mix igniter.install beamlens@github:mangalakader/beamlens
+mix igniter.install beamscope@git:https://github.com/mangalakader/beamscope.git
+# or: mix igniter.install beamscope@github:mangalakader/beamscope
 ```
 
-**Ignore the build artifacts.** Once you index a repo (see below), beamlens
-writes `<repo_path>/.beamlens/` there — a rebuildable cache, like `_build/`,
+**Ignore the build artifacts.** Once you index a repo (see below), beamscope
+writes `<repo_path>/.beamscope/` there — a rebuildable cache, like `_build/`,
 not something to commit or ship. Add to the *consuming* project's
 `.gitignore` (and `.dockerignore`, if you build container images):
 
 ```
-.beamlens/
+.beamscope/
 ```
 
 **Optional — only needed for `search_code` (semantic search)** — add the ML
@@ -84,14 +115,14 @@ after that is automatic — no Ollama, Qdrant, or Docker to run.
 Start the MCP server:
 
 ```
-mix beamlens.mcp                # http://localhost:9877/mcp
-mix beamlens.mcp --port 8080
+mix beamscope.mcp                # http://localhost:9877/mcp
+mix beamscope.mcp --port 8080
 ```
 
 Connect an MCP client to that URL as a remote HTTP server (not a spawned
 stdio subprocess). There's no separate "index this repo" step: every tool
 call takes an explicit `repo_path`, and the first call for a given path
-builds (and caches, and persists to `<repo_path>/.beamlens/`) whatever it
+builds (and caches, and persists to `<repo_path>/.beamscope/`) whatever it
 needs on demand.
 
 - `get_callers`/`get_callees`/`find_call_path` build the call graph on
@@ -103,13 +134,36 @@ needs on demand.
   is the first time it's run on this machine.
 
 Every call after the first for a given `repo_path` is served from an
-in-memory cache, and the on-disk `.beamlens/` files survive a server
+in-memory cache, and the on-disk `.beamscope/` files survive a server
 restart too — nothing needs to rebuild just because the server restarted.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant R as Repo
+    participant Disk as .beamscope/ on disk
+
+    C->>R: first call (repo_path)
+    Note over R: no in-memory cache, no disk file yet
+    R->>R: build (parse / chunk / embed)
+    R->>Disk: persist (atomic write)
+    R-->>C: result
+
+    C->>R: next call (same repo_path)
+    Note over R: in-memory cache hit
+    R-->>C: result (fast)
+
+    Note over R: server restarts
+    C->>R: call after restart
+    R->>Disk: load persisted file
+    Note over R: cached in memory again
+    R-->>C: result (no rebuild)
+```
 
 Without the MCP server, the same operations are available directly:
 
 ```elixir
-alias Beamlens.Repo
+alias Beamscope.Repo
 
 {:ok, %{callers: callers}} = Repo.callers("/path/to/repo", "my_module", "my_function")
 
@@ -122,7 +176,7 @@ alias Beamlens.Repo
 **Call graph** — who calls what, and how to get from A to B:
 
 ```elixir
-alias Beamlens.Repo
+alias Beamscope.Repo
 
 {:ok, %{callers: callers}} = Repo.callers("/path/to/repo", "my_module", "my_function")
 {:ok, %{callees: callees}} = Repo.callees("/path/to/repo", "my_module", "my_function")
@@ -158,7 +212,7 @@ call failing.
 function/attribute-level chunks directly:
 
 ```elixir
-alias Beamlens.Chunking.Pipeline
+alias Beamscope.Chunking.Pipeline
 
 result = Pipeline.chunk_repo("/path/to/repo", max_concurrency: 8)
 result.chunks   # [%{symbol:, start_line:, end_line:, text:, kind:, file_path:, warning:}, ...]
@@ -172,11 +226,11 @@ everything else (docs, config files) or files that fail to parse.
 ## Benchmarking your own repo
 
 ```
-mix beamlens.benchmark --repo /path/to/repo [--repo /path/to/repo2] [--output docs/benchmarks/]
+mix beamscope.benchmark --repo /path/to/repo [--repo /path/to/repo2] [--output docs/benchmarks/]
 ```
 
 Auto-discovers representative tasks in the repo, measures real token
-counts and latency for beamlens vs. a grep/read baseline, and writes a
+counts and latency for beamscope vs. a grep/read baseline, and writes a
 timestamped Markdown report. See [ENGINEERING.md](ENGINEERING.md) for the
 methodology and results this same tool produced against MongooseIM,
 amoc-arsenal-xmpp, and the Elixir language's own source.
@@ -205,7 +259,7 @@ mix deps.get
 mix test
 ```
 
-Tests tagged `:external` (`Beamlens.Embeddings`/`Beamlens.Search.Store`
+Tests tagged `:external` (`Beamscope.Embeddings`/`Beamscope.Search.Store`
 real embedding tests) are excluded by default since they hit a real
 model download + CPU inference — run `mix test --include external` to
 include them.

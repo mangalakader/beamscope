@@ -1,7 +1,7 @@
 # Engineering notes
 
 This document records the architecture decisions, benchmark methodology,
-and measured results behind beamlens — for anyone evaluating whether to
+and measured results behind beamscope — for anyone evaluating whether to
 adopt it, deciding whether to trust its claims, or contributing to it. For
 day-to-day usage, see [README.md](README.md) instead.
 
@@ -52,6 +52,13 @@ guess:
    MiniLM — is trained specifically for asymmetric query/passage
    retrieval.
 
+```mermaid
+flowchart LR
+    A["all-MiniLM-L6-v2\n(original choice)"] -->|"mis-ranks exact-name\nmatches in real testing"| B["nomic-embed-text-v1\n(matches reference pipeline)"]
+    B -->|"117s cold call,\nstrains machine warm too"| C["bge-small-en-v1.5\n(current choice)"]
+    C -->|"MiniLM-class speed +\ntrained for asymmetric retrieval"| D["shipped"]
+```
+
 Torchx (not EXLA) is the `Nx` backend, specifically because EXLA has no
 native Windows binaries (Windows needs WSL to use it at all); Torchx
 auto-downloads a precompiled CPU libtorch build and works natively on
@@ -62,7 +69,7 @@ Windows.
 `search_code` originally measured 16–46 *seconds* per query (even warm)
 and 6.5–12 *minutes* to cold-index even a small directory. The vector
 search step itself was always sub-second — the actual cause was two
-compounding bugs in `Beamlens.Embeddings`:
+compounding bugs in `Beamscope.Embeddings`:
 
 - Every short query was padded up to a full `32×512` tensor (~1000x
   needless compute).
@@ -75,6 +82,24 @@ switching to `Nx.Serving`'s stateful/process workflow (`start_link` +
 fully cold call, ~70ms warm** — without adding an external vector
 database, since the search step was never the slow part.
 
+```mermaid
+sequenceDiagram
+    participant Q as Query
+    participant Before as Nx.Serving.run/2 (before)
+    participant After as batched_run/2 (after)
+
+    Note over Before: every call
+    Q->>Before: embed("short query")
+    Before->>Before: pad to full 32x512 tensor
+    Before->>Before: rebuild computation graph from scratch
+    Before-->>Q: result (16-46s)
+
+    Note over After: dedicated serving, started once, reused
+    Q->>After: embed("short query")
+    After->>After: small shape sized for one query
+    After-->>Q: result (~70ms warm, 1.4s cold)
+```
+
 ## Token efficiency: methodology and results
 
 The point of building on `:epp`/`Code.string_to_quoted` was never
@@ -85,16 +110,26 @@ AI coding agent burns navigating a large Erlang/Elixir codebase.
 and a vendored `cl100k_base`-equivalent tokenizer, cross-checked against
 real `tiktoken`), not a `char/4` estimate. Baseline is a real
 grep-equivalent scan + full read of every matching file, capped at 10MB
-to keep a runaway match from exhausting memory (see `Beamlens.Benchmark.Baseline`).
-`mix beamlens.benchmark --repo /path/to/repo` runs this automatically —
+to keep a runaway match from exhausting memory (see `Beamscope.Benchmark.Baseline`).
+`mix beamscope.benchmark --repo /path/to/repo` runs this automatically —
 auto-discovers representative tasks per repo (highest-in-degree function
 for `get_callers`, etc.), measures both sides, and writes a timestamped
 Markdown report.
 
+```mermaid
+flowchart LR
+    Repo["target repo"] --> Discover["TaskDiscovery\n(auto-pick representative tasks)"]
+    Discover --> Baseline["Baseline\n(real grep + full-file read, capped at 10MB)"]
+    Discover --> Beamscope["Beamscope.Repo\n(get_callers / get_callees / find_call_path / search)"]
+    Baseline --> Tokenizer["Tokenizer\n(real BPE count, cl100k_base-equivalent)"]
+    Beamscope --> Tokenizer
+    Tokenizer --> Report["Markdown report\n(tokens, reduction %, latency)"]
+```
+
 **Results** (18-task benchmark across three real codebases — MongooseIM,
 amoc-arsenal-xmpp, and the Elixir language's own source; 16 tasks scored):
 
-| | Baseline (grep/read) | Beamlens (MCP tool) | Reduction |
+| | Baseline (grep/read) | Beamscope (MCP tool) | Reduction |
 |---|---:|---:|---:|
 | **Total tokens** | 1,355,159 | 5,807 | **99.6%** |
 | `get_callers`/`get_callees`/`find_call_path` (11 tasks) | — | — | 100% passed quality grading, 98–99.95% reduction |
@@ -122,7 +157,7 @@ response plus reading just each call site's enclosing snippet — comes to
 ## Crash-resilient persistence
 
 Both the call graph and the search index are cached in-memory per repo
-path and persisted to disk (`<repo_path>/.beamlens/callgraph.json` and
+path and persisted to disk (`<repo_path>/.beamscope/callgraph.json` and
 `search.dets`) so a server restart doesn't require rebuilding from
 scratch.
 
@@ -139,17 +174,39 @@ regardless of what path the file was originally opened at. A crash
 mid-build now only ever abandons a temp file; the last-known-good real
 file is untouched.
 
+```mermaid
+flowchart TD
+    Start["build starts"] --> Tmp["write to a temp file\n(name.tmp.unique)"]
+    Tmp --> Close["close cleanly (DETS) /\nwrite completes (JSON)"]
+    Close --> Rename["rename to real path\n(atomic, same filesystem)"]
+    Rename --> Done["real file updated"]
+
+    Tmp -.->|process killed here| Crash["only the .tmp file\nis abandoned"]
+    Crash --> OldReal["previous real file:\nuntouched, still valid"]
+```
+
 ## MCP transport: HTTP, not stdio
 
 Most local MCP clients (Claude Desktop, Claude Code) default to spawning
-a subprocess and talking over stdio. Beamlens's MCP server instead runs
+a subprocess and talking over stdio. Beamscope's MCP server instead runs
 over HTTP — matching how [Tidewave](https://hexdocs.pm/tidewave/mcp.html),
 a widely-used production Elixir MCP server, does it: mounted HTTP, not a
 spawned stdio subprocess. This fits a BEAM server that's typically
 already long-running (e.g. attached to a Phoenix app) rather than spawned
 per-session.
 
-The MCP layer (`Beamlens.MCP.Protocol`/`Beamlens.MCP.Router`) is built
+```mermaid
+flowchart LR
+    subgraph Typical["Typical local MCP tool"]
+        ClientA["MCP client"] -->|spawns subprocess| StdioServer["stdio server\n(one per session)"]
+    end
+
+    subgraph Beamscope["Beamscope"]
+        ClientB["MCP client"] -->|HTTP JSON-RPC| HTTPServer["mix beamscope.mcp\n(long-running, Plug + Bandit)"]
+    end
+```
+
+The MCP layer (`Beamscope.MCP.Protocol`/`Beamscope.MCP.Router`) is built
 directly on `Plug` + `Bandit` + `Jason`, with no MCP protocol library. A
 handful of stateless tools don't need a full client/server SDK (session
 tracking, SSE, batching, capability negotiation beyond `tools`) — a

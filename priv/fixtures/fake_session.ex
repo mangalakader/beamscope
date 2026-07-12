@@ -1,4 +1,4 @@
-defmodule Beamlens.FakeSession do
+defmodule Beamscope.FakeSession do
   @moduledoc "Synthetic fixture standing in for a real session-handling module."
 
   def resume(session_id, token), do: verify(session_id, token)

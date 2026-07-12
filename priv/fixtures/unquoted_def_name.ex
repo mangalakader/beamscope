@@ -1,4 +1,4 @@
-defmodule Beamlens.FakeGenerated do
+defmodule Beamscope.FakeGenerated do
   @moduledoc "Synthetic fixture: a macro-generated def head alongside a normal one."
 
   def unquote(:dynamic_fun)() do
