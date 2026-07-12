@@ -2,19 +2,61 @@
 
 Compiler-accurate code intelligence for BEAM codebases (Erlang and Elixir).
 
-Chunking and call-graph extraction are built on `:epp` and
-`Code.string_to_quoted/2` — the same frontends the compiler itself uses —
-instead of a generic tree-sitter grammar. On Erlang specifically, this
-means macros are seen exactly as the compiler sees them: a call hidden
-behind a `-define`d macro resolves to its real target, not an opaque
-token.
+## Why this exists
 
-Built to reduce the token cost of AI coding agents (Claude Code, and
-similar tools) working against large Erlang/Elixir codebases — in
-benchmarks across three real codebases, using beamscope instead of raw
+AI coding agents burn a large share of their context window just
+*finding* the code relevant to a question, before they can reason about
+it — and that cost is worse on large, mature Erlang/Elixir codebases than
+on most languages, because BEAM code leans on real compile-time macros
+for common patterns (backend dispatch, logging wrappers, `-define`-based
+DSLs). Beamscope's goal is narrow and specific: **cut the token cost of
+navigating a BEAM codebase, with measured evidence, not promises.**
+Structural correctness (seeing through macros, an accurate call graph) is
+the means to that end, not the end in itself.
+
+The approach: chunking and call-graph extraction are built on `:epp` and
+`Code.string_to_quoted/2` — the same frontends the compiler itself uses —
+instead of a generic syntax grammar. On Erlang specifically, this means
+macros are seen exactly as the compiler sees them: a call hidden behind a
+`-define`d macro resolves to its real target, not an opaque token.
+
+In benchmarks across three real codebases, using beamscope instead of raw
 grep/read cuts token usage by 90–100% on call-graph queries. See
 [ENGINEERING.md](ENGINEERING.md) for the architecture decisions,
 benchmark methodology, and full results.
+
+This is deliberately **not** a general-purpose, many-language code
+intelligence platform — it exists to be deep and correct on BEAM
+specifically, not broad across every language.
+
+## How this differs from other approaches
+
+Existing BEAM code-intelligence options generally fall into two
+categories, and each has a real, structural reason it doesn't cover this
+specific case:
+
+- **Broad, many-language code-search tools.** Often more full-featured
+  than beamscope in most respects — more languages, more query types.
+  But BEAM languages are a small slice of a large addressable market for
+  a generalist tool, so the depth of language-specific handling varies a
+  lot across what they support, and macro-aware call resolution for
+  Erlang specifically isn't something a generalist architecture is
+  well-positioned to prioritize.
+- **Language-server/syntax-grammar-based tooling.** Good, often
+  excellent, for straightforward symbol lookup. Some of these do attempt
+  macro-aware analysis on top of a generic syntax tree — but that means
+  *reimplementing* macro semantics separately from the real compiler,
+  which risks diverging from it in edge cases. Beamscope avoids that
+  category of risk by construction: it calls `:epp`/
+  `Code.string_to_quoted/2` directly, so macro expansion is whatever the
+  real compiler produces, not a second, independent approximation of it.
+
+Neither of these makes existing tools bad — most of what they do, they do
+well, for the languages and use cases they're built around. This is a
+narrower claim than "better than everything": beamscope exists
+specifically for codebases where seeing through macros reliably is worth
+a dedicated tool. If your BEAM codebase barely uses macros, the gap this
+closes matters a lot less to you.
 
 ## How it works
 
@@ -64,7 +106,7 @@ Add to the consuming project's `mix.exs`:
 ```elixir
 def deps do
   [
-    {:beamscope, "~> 0.1.0"}
+    {:beamscope, "~> 0.1.2"}
   ]
 end
 ```
