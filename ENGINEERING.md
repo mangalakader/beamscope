@@ -100,6 +100,51 @@ sequenceDiagram
     After-->>Q: result (~70ms warm, 1.4s cold)
 ```
 
+## Performance: preferring MPS (Apple GPU) over CPU when available
+
+Even after the query-serving latency fix above, the *document* serving
+(32×512, used while indexing/embedding chunks) was still hard-coded to
+`device: :cpu` — a deliberate choice at the time, following the same
+portability reasoning behind choosing Torchx over EXLA in the first place
+(one code path that works identically on every install target, not just
+one machine). Indexing a real, moderately large repo (Phoenix framework's
+own source) surfaced how expensive that per-batch cost actually is: the
+first `search_code` call against a real-sized repo can look "stuck" for
+several minutes with zero progress output, because each 32-chunk batch
+genuinely takes about a minute on CPU.
+
+Measured directly (32×512 batch — the real per-batch cost paid during
+indexing, not a one-time compile; cold/warm/warm-2 are three consecutive
+calls against an already-started serving):
+
+| | Cold | Warm | Warm 2 |
+|---|---:|---:|---:|
+| CPU | 56.6s | 61.8s | 60.5s |
+| MPS (Apple GPU) | 26.4s | 28.2s | 32.4s |
+
+A real ~2x speedup, not an estimate. Two things were verified before
+switching, rather than assumed:
+
+- **Correctness**: the MPS output is unit-norm (`1.0000000899...`, as
+  expected from the model's `l2_norm` post-processing), contains no NaN,
+  and is the correct 384-dim vector for this model.
+- **Whether MPS's known gaps actually apply here**: Torchx documents a
+  specific list of operations unsupported on MPS (`LU`, `Eigh`, `Solve`,
+  `Determinant`, `Cholesky` — linear-algebra decompositions), none of
+  which a BERT-style embedding forward pass ever calls.
+
+Fixed by preferring `:mps` when `Torchx.device_available?/1` reports it,
+falling back to `:cpu` everywhere else — Linux, Windows, Intel Macs, or
+any Mac without it. Purely additive: any platform without an available
+MPS device gets exactly the prior CPU-only behavior, unchanged.
+
+```mermaid
+flowchart TD
+    Start["Beamscope.Embeddings starts"] --> Check{"Torchx.device_available?(:mps)"}
+    Check -->|true| MPS["device: :mps\n~30s/batch (measured)"]
+    Check -->|false| CPU["device: :cpu\n~60s/batch (measured)\nLinux, Windows, Intel Mac, etc."]
+```
+
 ## Token efficiency: methodology and results
 
 The point of building on `:epp`/`Code.string_to_quoted` was never
