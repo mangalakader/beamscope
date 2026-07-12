@@ -44,12 +44,17 @@ specific case:
   well-positioned to prioritize.
 - **Language-server/syntax-grammar-based tooling.** Good, often
   excellent, for straightforward symbol lookup. Some of these do attempt
-  macro-aware analysis on top of a generic syntax tree — but that means
-  *reimplementing* macro semantics separately from the real compiler,
-  which risks diverging from it in edge cases. Beamscope avoids that
+  macro-aware analysis on top of a generic syntax tree, and — checked
+  directly, not assumed — at least one real, actively maintained Erlang
+  tool already resolves common macro patterns correctly. But that kind of
+  support means *reimplementing* macro semantics separately from the real
+  compiler, which carries a real risk of diverging from it in edge cases
+  the reimplementation doesn't happen to cover. Beamscope avoids that
   category of risk by construction: it calls `:epp`/
   `Code.string_to_quoted/2` directly, so macro expansion is whatever the
   real compiler produces, not a second, independent approximation of it.
+  See [ENGINEERING.md](ENGINEERING.md) for the specific, verified test
+  behind this.
 
 Neither of these makes existing tools bad — most of what they do, they do
 well, for the languages and use cases they're built around. This is a

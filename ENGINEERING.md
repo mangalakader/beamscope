@@ -9,17 +9,38 @@ day-to-day usage, see [README.md](README.md) instead.
 
 Erlang codebases lean heavily on macros (`-define`) for things like
 backend dispatch and logging. A tool that reads source text with a
-generic grammar (tree-sitter, a text index, an LSP symbol index) sees the
-macro invocation, not what it expands to — it doesn't error or warn, it
-just silently doesn't know the real call target.
+generic grammar (tree-sitter, a text index) sees the macro invocation,
+not necessarily what it expands to — it doesn't error or warn, it can
+just silently not know the real call target.
 
 `:epp` (the Erlang preprocessor) and `Code.string_to_quoted/2` are the
 same frontends the Erlang and Elixir compilers themselves use. Building
 chunking and call-graph extraction on them means a call hidden behind a
 macro resolves to its real target, because the extractor sees the code
-after macro expansion, exactly as the compiler does — not an
-approximation of it. This is the one architectural bet the whole project
-is built around; everything else follows from it.
+after macro expansion, exactly as the compiler does — not a separate
+approximation of that process. This is the one architectural bet the
+whole project is built around; everything else follows from it.
+
+**Honest caveat, checked directly rather than assumed**: this is not a
+claim that no other tool can see through macros. WhatsApp's Erlang
+Language Platform (ELP) — a real, actively maintained, compiler-adjacent
+tool — was tested directly against this project's own `?PRINT` macro
+example (`priv/fixtures/mongooseim/src/ejabberd_ctl.erl`): `elp
+parse-all` was run against the real file and the resulting AST was
+inspected directly (not just its docs). ELP's own parser correctly
+expands `?PRINT(Format, Args)` to `io:format(lists:flatten(Format),
+Args)` at real call sites — the actual target, not the raw macro text.
+So for this common, function-like macro pattern, ELP already gets this
+right. The narrower, still-true distinction is architectural, not a
+capability gap: ELP's macro handling is a custom implementation (built on
+tree-sitter plus its own incremental-analysis layer, per its own public
+documentation), not the compiler's actual preprocessor — so its
+correctness depends on that reimplementation staying in sync with real
+`:epp` semantics, including edge cases (deeply nested macros, macros used
+as sub-expressions rather than whole calls, conditional-compilation-gated
+definitions) that weren't part of this test and haven't been verified
+either way. Calling `:epp` directly removes that category of risk by
+construction, rather than by more careful reimplementation.
 
 ## Phase 0: chunking + call-graph parity validation
 
