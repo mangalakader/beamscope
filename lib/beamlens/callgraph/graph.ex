@@ -81,6 +81,19 @@ defmodule Beamlens.Callgraph.Graph do
   @spec shortest_path(LibGraph.t(), String.t(), String.t()) :: [String.t()] | nil
   def shortest_path(graph, from, to), do: LibGraph.get_shortest_path(graph, from, to)
 
+  @doc """
+  Shortest call path from `from` to `to`, like `shortest_path/3`, but with
+  each hop enriched with its definition location like
+  `callers_with_locations/2`. `nil` if no path exists.
+  """
+  @spec shortest_path_with_locations(LibGraph.t(), String.t(), String.t()) :: [map()] | nil
+  def shortest_path_with_locations(graph, from, to) do
+    case shortest_path(graph, from, to) do
+      nil -> nil
+      path -> Enum.map(path, &location_entry(graph, &1))
+    end
+  end
+
   @spec to_node_link_json(LibGraph.t()) :: String.t()
   def to_node_link_json(graph) do
     nodes =

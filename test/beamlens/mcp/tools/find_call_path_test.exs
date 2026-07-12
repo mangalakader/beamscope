@@ -15,7 +15,16 @@ defmodule Beamlens.MCP.Tools.FindCallPathTest do
     }
 
     assert {:ok, content} = FindCallPath.call(params)
-    assert content.path == ["mod_sample:start", "mod_sample:helper", "gen_mod:get_module_opt"]
+
+    assert [
+             %{qualified_name: "mod_sample:start", file_path: start_file, start_line: 4},
+             %{qualified_name: "mod_sample:helper", file_path: helper_file, start_line: 10},
+             %{qualified_name: "gen_mod:get_module_opt"} = external
+           ] = content.path
+
+    assert start_file =~ "mod_sample.erl"
+    assert helper_file == start_file
+    refute Map.has_key?(external, :file_path)
   end
 
   test "returns nil when no path exists" do

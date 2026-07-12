@@ -43,16 +43,19 @@ defmodule Beamlens.Repo do
     end
   end
 
-  @doc "Shortest call path between two functions, if one exists."
+  @doc """
+  Shortest call path between two functions, if one exists, each hop
+  enriched with its definition location like `callers/3`/`callees/3`.
+  """
   @spec call_path(repo_path(), String.t(), String.t(), String.t(), String.t()) ::
-          {:ok, %{from: String.t(), to: String.t(), path: [String.t()] | nil}}
+          {:ok, %{from: String.t(), to: String.t(), path: [map()] | nil}}
           | {:error, String.t()}
   def call_path(repo_path, from_module, from_function, to_module, to_function) do
     with :ok <- validate_repo_path(repo_path) do
       from = Graph.qualified_name(from_module, from_function)
       to = Graph.qualified_name(to_module, to_function)
       graph = Store.get_or_build(repo_path)
-      {:ok, %{from: from, to: to, path: Graph.shortest_path(graph, from, to)}}
+      {:ok, %{from: from, to: to, path: Graph.shortest_path_with_locations(graph, from, to)}}
     end
   end
 

@@ -37,6 +37,8 @@ defmodule Beamlens.MixProject do
       {:bumblebee, "~> 0.7", optional: true},
       {:nx, "~> 0.12", optional: true},
       {:torchx, "~> 0.12", optional: true},
+      {:tokenizers, "~> 0.5"},
+      {:benchee, "~> 1.3", only: [:dev, :test]},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

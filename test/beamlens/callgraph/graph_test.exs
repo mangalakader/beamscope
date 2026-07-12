@@ -41,6 +41,32 @@ defmodule Beamlens.Callgraph.GraphTest do
     assert Graph.shortest_path(graph, "mod_fake_backend:start", "gen_mod:get_module_opt") == nil
   end
 
+  test "shortest_path_with_locations/3 enriches each hop, leaving unresolved ones bare", %{
+    graph: graph
+  } do
+    assert [
+             %{qualified_name: "mod_fake_backend:get_user", file_path: file_path, start_line: 18},
+             %{qualified_name: "gen_mod:get_module_opt"} = target
+           ] =
+             Graph.shortest_path_with_locations(
+               graph,
+               "mod_fake_backend:get_user",
+               "gen_mod:get_module_opt"
+             )
+
+    assert file_path =~ "mod_fake_backend.erl"
+    refute Map.has_key?(target, :file_path)
+  end
+
+  test "shortest_path_with_locations/3 returns nil when no path exists", %{graph: graph} do
+    assert Graph.shortest_path_with_locations(
+             graph,
+             "mod_fake_backend:start",
+             "gen_mod:get_module_opt"
+           ) ==
+             nil
+  end
+
   test "defs/1 returns every known definition with its location, excluding unresolved nodes", %{
     graph: graph
   } do
