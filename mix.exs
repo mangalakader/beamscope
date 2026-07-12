@@ -63,7 +63,47 @@ defmodule Beamscope.MixProject do
       main: "readme",
       source_url: "https://github.com/mangalakader/beamscope",
       source_ref: "v#{@version}",
-      extras: ["README.md", "ENGINEERING.md"]
+      extras: ["README.md", "ENGINEERING.md"],
+      before_closing_body_tag: &mermaid_script/1
     ]
   end
+
+  # ExDoc doesn't render Mermaid code blocks itself (they'd otherwise just
+  # show up as plain text on HexDocs) — this loads Mermaid.js from a CDN
+  # and renders every `pre code.mermaid` block client-side once the page
+  # loads. `:epub` can't run JS, so only inject it for `:html`.
+  defp mermaid_script(:html) do
+    """
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <script>
+      let initialized = false;
+
+      window.addEventListener("exdoc:loaded", () => {
+        if (!initialized) {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: document.body.className.includes("dark") ? "dark" : "default"
+          });
+          initialized = true;
+        }
+
+        let id = 0;
+        for (const codeEl of document.querySelectorAll("pre code.mermaid")) {
+          const preEl = codeEl.parentElement;
+          const graphDefinition = codeEl.textContent;
+          const graphEl = document.createElement("div");
+          const graphId = "mermaid-graph-" + id++;
+          mermaid.render(graphId, graphDefinition).then(({ svg, bindFunctions }) => {
+            graphEl.innerHTML = svg;
+            bindFunctions?.(graphEl);
+            preEl.insertAdjacentElement("afterend", graphEl);
+            preEl.remove();
+          });
+        }
+      });
+    </script>
+    """
+  end
+
+  defp mermaid_script(_formatter), do: ""
 end
