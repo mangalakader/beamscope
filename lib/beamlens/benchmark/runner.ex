@@ -148,18 +148,27 @@ defmodule Beamlens.Benchmark.Runner do
       |> maybe_put_scenarios("get_callers", repo_path, tasks.get_callers, &Repo.callers/3)
       |> maybe_put_scenarios("get_callees", repo_path, tasks.get_callees, &Repo.callees/3)
 
-    if scenarios == %{} do
-      []
-    else
-      suite = Benchee.run(scenarios, time: 1, warmup: 0.5)
+    cond do
+      scenarios == %{} ->
+        []
 
-      Enum.map(suite.scenarios, fn scenario ->
-        %{
-          name: scenario.name,
-          average_us: scenario.run_time_data.statistics.average / 1000,
-          median_us: scenario.run_time_data.statistics.median / 1000
-        }
-      end)
+      not Code.ensure_loaded?(Benchee) ->
+        []
+
+      true ->
+        # `apply/3` rather than a literal `Benchee.run/2` call: Benchee is
+        # `only: [:dev, :test]` in mix.exs, which never propagates to a
+        # consuming project's own deps — a static call would warn "module
+        # not available" at compile time for every consumer, in every env.
+        suite = apply(Benchee, :run, [scenarios, [time: 1, warmup: 0.5]])
+
+        Enum.map(suite.scenarios, fn scenario ->
+          %{
+            name: scenario.name,
+            average_us: scenario.run_time_data.statistics.average / 1000,
+            median_us: scenario.run_time_data.statistics.median / 1000
+          }
+        end)
     end
   end
 

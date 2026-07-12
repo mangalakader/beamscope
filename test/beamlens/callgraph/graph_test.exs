@@ -116,4 +116,32 @@ defmodule Beamlens.Callgraph.GraphTest do
     assert is_list(decoded["edges"])
     assert Enum.any?(decoded["nodes"], &(&1["id"] == "mod_fake_backend:get_user"))
   end
+
+  test "from_node_link_json/1 round-trips to_node_link_json/1 with identical vertices/edges/labels",
+       %{graph: graph} do
+    rebuilt = graph |> Graph.to_node_link_json() |> Graph.from_node_link_json()
+
+    assert Enum.sort(Elixir.Graph.vertices(rebuilt)) == Enum.sort(Elixir.Graph.vertices(graph))
+    assert Graph.defs(rebuilt) |> Enum.sort() == Graph.defs(graph) |> Enum.sort()
+
+    assert Graph.callees(rebuilt, "mod_fake_backend:get_user") ==
+             Graph.callees(graph, "mod_fake_backend:get_user")
+
+    assert Graph.callers(rebuilt, "gen_mod:get_module_opt") ==
+             Graph.callers(graph, "gen_mod:get_module_opt")
+
+    original_edges =
+      graph
+      |> Elixir.Graph.edges()
+      |> Enum.map(&{&1.v1, &1.v2, &1.label})
+      |> Enum.sort()
+
+    rebuilt_edges =
+      rebuilt
+      |> Elixir.Graph.edges()
+      |> Enum.map(&{&1.v1, &1.v2, &1.label})
+      |> Enum.sort()
+
+    assert rebuilt_edges == original_edges
+  end
 end

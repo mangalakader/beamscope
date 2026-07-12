@@ -7,11 +7,20 @@ defmodule Beamlens.Callgraph.Store do
   so the first call for a given path pays that cost and every subsequent
   call for the same path is an in-memory lookup, until `reindex/2` is
   called explicitly.
+
+  Also persists the built graph to `<repo_path>/.beamlens/callgraph.json`
+  (`Graph.to_node_link_json/1`) so a server restart reloads it from disk
+  instead of re-parsing the whole repo from source. Writes go to a
+  `.tmp.<unique>` file first, renamed into place only once fully written —
+  a crash mid-write leaves the last-known-good real file untouched rather
+  than corrupting it.
   """
 
   use GenServer
 
-  alias Beamlens.Callgraph.Pipeline
+  require Logger
+
+  alias Beamlens.Callgraph.{Graph, Pipeline}
 
   @type repo_path :: String.t()
 
@@ -47,8 +56,14 @@ defmodule Beamlens.Callgraph.Store do
   @impl true
   def handle_call({:get_or_build, repo_path, opts}, _from, state) do
     case Map.fetch(state, repo_path) do
-      {:ok, graph} -> {:reply, graph, state}
-      :error -> build_and_cache(repo_path, opts, state)
+      {:ok, graph} ->
+        {:reply, graph, state}
+
+      :error ->
+        case load_persisted(repo_path) do
+          {:ok, graph} -> {:reply, graph, Map.put(state, repo_path, graph)}
+          :error -> build_and_cache(repo_path, opts, state)
+        end
     end
   end
 
@@ -62,6 +77,62 @@ defmodule Beamlens.Callgraph.Store do
 
   defp build_and_cache(repo_path, opts, state) do
     graph = Pipeline.build_graph(repo_path, opts)
+    persist(repo_path, graph)
     {:reply, graph, Map.put(state, repo_path, graph)}
   end
+
+  defp load_persisted(repo_path) do
+    path = callgraph_path_for(repo_path)
+
+    with true <- File.exists?(path),
+         {:ok, json} <- File.read(path),
+         {:ok, graph} <- safe_decode(json) do
+      {:ok, graph}
+    else
+      _ -> :error
+    end
+  end
+
+  defp safe_decode(json) do
+    {:ok, Graph.from_node_link_json(json)}
+  rescue
+    error ->
+      Logger.warning(
+        "beamlens: ignoring unreadable persisted call graph at #{Exception.message(error)}"
+      )
+
+      :error
+  end
+
+  defp persist(repo_path, graph) do
+    path = callgraph_path_for(repo_path)
+    File.mkdir_p!(Path.dirname(path))
+    cleanup_stray_tmp_files(path)
+
+    tmp_path = "#{path}.tmp.#{System.unique_integer([:positive])}"
+    File.write!(tmp_path, Graph.to_node_link_json(graph))
+    File.rename!(tmp_path, path)
+  rescue
+    error ->
+      Logger.warning(
+        "beamlens: failed to persist call graph for #{repo_path}: #{Exception.message(error)}"
+      )
+  end
+
+  defp cleanup_stray_tmp_files(path) do
+    dir = Path.dirname(path)
+    base = Path.basename(path)
+
+    case File.ls(dir) do
+      {:ok, entries} ->
+        entries
+        |> Enum.filter(&String.starts_with?(&1, "#{base}.tmp."))
+        |> Enum.each(&File.rm(Path.join(dir, &1)))
+
+      {:error, _reason} ->
+        :ok
+    end
+  end
+
+  defp callgraph_path_for(repo_path), do: Path.join([repo_path, ".beamlens", "callgraph.json"])
 end

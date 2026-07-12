@@ -38,7 +38,7 @@ defmodule Beamlens.MixProject do
       {:nx, "~> 0.12", optional: true},
       {:torchx, "~> 0.12", optional: true},
       {:tokenizers, "~> 0.5"},
-      {:benchee, "~> 1.3", only: [:dev, :test]},
+      {:benchee, "~> 1.3", only: [:dev, :test], optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
@@ -54,14 +54,14 @@ defmodule Beamlens.MixProject do
       licenses: ["MIT"],
       # TODO: add a real `links: %{"GitHub" => "..."}` once this has a public repo —
       # intentionally omitted rather than guessing a URL that doesn't exist yet.
-      files: ~w(lib mix.exs README.md LICENSE .formatter.exs)
+      files: ~w(lib mix.exs README.md ENGINEERING.md LICENSE .formatter.exs)
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"]
+      extras: ["README.md", "ENGINEERING.md"]
     ]
   end
 end

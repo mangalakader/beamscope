@@ -30,6 +30,55 @@ defmodule Beamlens.Callgraph.StoreTest do
     refute Store.indexed?("priv/fixtures/never_queried_repo")
   end
 
+  test "get_or_build/2 persists the graph to disk and reuses it after a process restart, without re-parsing source" do
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "beamlens_callgraph_persist_test_#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+
+    File.cp!(
+      Path.join(@repo, "mod_sample.erl"),
+      Path.join(dir, "mod_sample.erl")
+    )
+
+    graph1 = Store.get_or_build(dir)
+    assert Graph.callees(graph1, "mod_sample:start") == ["mod_sample:helper"]
+
+    callgraph_json = Path.join([dir, ".beamlens", "callgraph.json"])
+    assert File.exists?(callgraph_json)
+
+    # Delete the source file entirely — if the next get_or_build re-parsed
+    # from source rather than loading the persisted JSON, it would come
+    # back with an empty graph (or crash), not the same real graph.
+    File.rm!(Path.join(dir, "mod_sample.erl"))
+
+    store_pid = Process.whereis(Store)
+    Process.exit(store_pid, :kill)
+    wait_for_restart(store_pid)
+
+    graph2 = Store.get_or_build(dir)
+    assert Graph.callees(graph2, "mod_sample:start") == ["mod_sample:helper"]
+  end
+
+  defp wait_for_restart(old_pid, attempts \\ 100)
+
+  defp wait_for_restart(_old_pid, 0), do: flunk("Store did not restart in time")
+
+  defp wait_for_restart(old_pid, attempts) do
+    case Process.whereis(Store) do
+      pid when is_pid(pid) and pid != old_pid ->
+        :ok
+
+      _not_restarted_yet ->
+        Process.sleep(10)
+        wait_for_restart(old_pid, attempts - 1)
+    end
+  end
+
   test "a crash-inducing build for one repo doesn't wipe another repo's cache" do
     Store.get_or_build(@repo)
     assert Store.indexed?(@repo)

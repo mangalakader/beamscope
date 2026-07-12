@@ -13,6 +13,12 @@ defmodule Beamlens.Search.Store do
   repo — `get_or_build/2` opens an existing table if one is already on
   disk instead of rebuilding from scratch.
 
+  A fresh build writes to a `search.dets.tmp.<unique>` file, only renamed
+  to the real `search.dets` path after a clean `:dets.close/1` — so a
+  process crash mid-build (e.g. `kill -9`) leaves only the temp file
+  behind rather than leaving the real file "not properly closed" (which
+  triggers DETS's automatic repair-on-reopen, and can reset it to empty).
+
   Search is brute-force cosine similarity over the in-memory vector list.
   Realistic scale here is tens of thousands of vectors per repo, well
   within what a linear scan handles in well under a second — no ANN index
@@ -134,19 +140,56 @@ defmodule Beamlens.Search.Store do
     if Embeddings.available?() do
       dets_path = dets_path_for(repo_path)
       File.mkdir_p!(Path.dirname(dets_path))
+      cleanup_stray_tmp_files(dets_path)
 
-      {:ok, table} =
-        :dets.open_file(table_name_for(repo_path), file: to_charlist(dets_path), type: :set)
-
-      vectors =
-        case :dets.info(table, :size) do
-          0 -> build_and_persist(repo_path, table, opts)
-          _existing -> :dets.foldl(fn row, acc -> [row | acc] end, [], table)
+      table =
+        if File.exists?(dets_path) do
+          open_existing(repo_path, dets_path)
+        else
+          build_fresh(repo_path, dets_path, opts)
         end
 
+      vectors = :dets.foldl(fn row, acc -> [row | acc] end, [], table)
       {:ok, Map.put(state, repo_path, %{table: table, vectors: vectors})}
     else
       {:error, :embeddings_not_available}
+    end
+  end
+
+  defp open_existing(repo_path, dets_path) do
+    {:ok, table} =
+      :dets.open_file(table_name_for(repo_path), file: to_charlist(dets_path), type: :set)
+
+    table
+  end
+
+  # Builds into a temp file and only renames it into place after a clean
+  # close, so a crash mid-build never leaves the real `search.dets` path
+  # "not properly closed" — see the moduledoc.
+  defp build_fresh(repo_path, dets_path, opts) do
+    tmp_path = "#{dets_path}.tmp.#{System.unique_integer([:positive])}"
+    tmp_table = :"#{table_name_for(repo_path)}_tmp_#{System.unique_integer([:positive])}"
+
+    {:ok, tmp_ref} = :dets.open_file(tmp_table, file: to_charlist(tmp_path), type: :set)
+    build_and_persist(repo_path, tmp_ref, opts)
+    :dets.close(tmp_ref)
+    File.rename!(tmp_path, dets_path)
+
+    open_existing(repo_path, dets_path)
+  end
+
+  defp cleanup_stray_tmp_files(dets_path) do
+    dir = Path.dirname(dets_path)
+    base = Path.basename(dets_path)
+
+    case File.ls(dir) do
+      {:ok, entries} ->
+        entries
+        |> Enum.filter(&String.starts_with?(&1, "#{base}.tmp."))
+        |> Enum.each(&File.rm(Path.join(dir, &1)))
+
+      {:error, _reason} ->
+        :ok
     end
   end
 

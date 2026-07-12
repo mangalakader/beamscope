@@ -121,4 +121,36 @@ defmodule Beamlens.Callgraph.Graph do
       edges: edges
     })
   end
+
+  @doc """
+  Rebuilds a graph from `to_node_link_json/1`'s output — used to reload a
+  persisted call graph (`Beamlens.Callgraph.Store`) without re-walking and
+  re-parsing the repo from source.
+  """
+  @spec from_node_link_json(String.t()) :: LibGraph.t()
+  def from_node_link_json(json) do
+    %{"nodes" => nodes, "edges" => edges} = Jason.decode!(json)
+
+    graph =
+      Enum.reduce(nodes, LibGraph.new(type: :directed), fn node, g ->
+        id = Map.fetch!(node, "id")
+
+        case node_label(node) do
+          label when map_size(label) > 0 -> LibGraph.add_vertex(g, id, label)
+          _empty -> LibGraph.add_vertex(g, id)
+        end
+      end)
+
+    Enum.reduce(edges, graph, fn edge, g ->
+      %{"source" => source, "target" => target} = edge
+      label = %{file_path: edge["file_path"], line: edge["line"]}
+      LibGraph.add_edge(g, source, target, label: label)
+    end)
+  end
+
+  defp node_label(%{"file_path" => file_path, "start_line" => start_line, "end_line" => end_line}) do
+    %{file_path: file_path, start_line: start_line, end_line: end_line}
+  end
+
+  defp node_label(_node), do: %{}
 end
